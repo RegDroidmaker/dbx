@@ -1,11 +1,9 @@
 import time
 import pickle
-import os  # Garante que o os está importado
-
+import os
 import numpy as np
 from mini_bdx_runtime.rustypot_position_hwi import HWI
 from mini_bdx_runtime.onnx_infer import OnnxInfer
-
 from mini_bdx_runtime.raw_imu import Imu
 from mini_bdx_runtime.poly_reference_motion import PolyReferenceMotion
 from mini_bdx_runtime.xbox_controller import XBoxController
@@ -23,8 +21,8 @@ class RLWalk:
     def __init__(
         self,
         onnx_model_path: str,
-        # --- CORREÇÃO 1: Caminho do JSON ajustado para a pasta dbx ---
-        duck_config_path: str = f"{HOME_DIR}/dbx/duck_config.json",
+        # --- CORREÇÃO 1: Caminho padrão apontando para a pasta dbx ---
+        duck_config_path: str = os.path.join(HOME_DIR, "dbx", "duck_config.json"),
         # -------------------------------------------------------------
         serial_port: str = "/dev/ttyACM0",
         control_freq: float = 50,
@@ -36,11 +34,16 @@ class RLWalk:
         replay_obs=None,
         cutoff_frequency=None,
     ):
-        # --- CORREÇÃO DE CAMINHOS RELATIVOS ---
+        # --- CORREÇÃO 2: Caminhos absolutos para PKL e Assets ---
+        # Descobre onde este script (start.py) está salvo
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Cria o caminho exato para o arquivo .pkl (na mesma pasta do script)
         pkl_path = os.path.join(self.script_dir, "polynomial_coefficients.pkl")
+        
+        # Cria o caminho exato para a pasta de sons assets
         assets_path = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/")
-        # --------------------------------------
+        # --------------------------------------------------------
 
         self.duck_config = DuckConfig(config_json_path=duck_config_path)
 
@@ -103,7 +106,10 @@ class RLWalk:
         if self.commands:
             self.xbox_controller = XBoxController(self.command_freq)
 
+        # Reference motion
+        # --- USO DA CORREÇÃO 2 ---
         self.PRM = PolyReferenceMotion(pkl_path)
+        # -------------------------
         
         self.imitation_i = 0
         self.imitation_phase = np.array([0, 0])
@@ -119,7 +125,9 @@ class RLWalk:
             self.projector = Projector()
         if self.duck_config.speaker:
             self.sounds = Sounds(
+                # --- USO DA CORREÇÃO 2 ---
                 volume=1.0, sound_directory=assets_path
+                # -------------------------
             )
         if self.duck_config.antennas:
             self.antennas = Antennas()
@@ -354,7 +362,9 @@ if __name__ == "__main__":
         "--duck_config_path",
         type=str,
         required=False,
-        default=None, # <--- Deixe None, assim ele usa o padrão definido no duck_config.py
+        # --- CORREÇÃO 1: Também ajustado aqui no Default do argparse ---
+        default=os.path.join(HOME_DIR, "dbx", "duck_config.json"),
+        # -------------------------------------------------------------
     )
     parser.add_argument("-a", "--action_scale", type=float, default=0.25)
     parser.add_argument("-p", type=int, default=30)
