@@ -1,5 +1,6 @@
 import time
 import pickle
+import os  # Garante que o os está importado
 
 import numpy as np
 from mini_bdx_runtime.rustypot_position_hwi import HWI
@@ -16,10 +17,7 @@ from mini_bdx_runtime.projector import Projector
 from mini_bdx_runtime.rl_utils import make_action_dict, LowPassActionFilter
 from mini_bdx_runtime.duck_config import DuckConfig
 
-import os
-
 HOME_DIR = os.path.expanduser("~")
-
 
 class RLWalk:
     def __init__(
@@ -36,6 +34,17 @@ class RLWalk:
         replay_obs=None,
         cutoff_frequency=None,
     ):
+        # --- CORREÇÃO DE CAMINHOS ---
+        # Pega o diretório onde ESTE arquivo (start.py) está localizado
+        self.script_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Cria o caminho absoluto para o arquivo pkl
+        pkl_path = os.path.join(self.script_dir, "polynomial_coefficients.pkl")
+        
+        # Cria o caminho absoluto para os assets (sons) para evitar erro futuro
+        # Assume que assets está em ../mini_bdx_runtime/assets relativo ao script
+        assets_path = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/")
+        # ----------------------------
 
         self.duck_config = DuckConfig(config_json_path=duck_config_path)
 
@@ -100,7 +109,9 @@ class RLWalk:
 
         # Reference motion, but we only really need the length of one phase
         # TODO
-        self.PRM = PolyReferenceMotion("./polynomial_coefficients.pkl")
+        # AQUI FOI A CORREÇÃO PRINCIPAL:
+        self.PRM = PolyReferenceMotion(pkl_path)
+        
         self.imitation_i = 0
         self.imitation_phase = np.array([0, 0])
         self.phase_frequency_factor = 1.0
@@ -115,7 +126,7 @@ class RLWalk:
             self.projector = Projector()
         if self.duck_config.speaker:
             self.sounds = Sounds(
-                volume=1.0, sound_directory="../mini_bdx_runtime/assets/"
+                volume=1.0, sound_directory=assets_path # AQUI TAMBEM AJUSTAMOS
             )
         if self.duck_config.antennas:
             self.antennas = Antennas()
