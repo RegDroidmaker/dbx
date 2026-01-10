@@ -3,7 +3,7 @@ import pickle
 import os
 import numpy as np
 import pygame  # Importante para controlar o audio
-import random  # <--- ADICIONADO PARA ESCOLHER O SOM ALEATÓRIO
+import random  # Para escolher o som aleatório
 
 from mini_bdx_runtime.rustypot_position_hwi import HWI
 from mini_bdx_runtime.onnx_infer import OnnxInfer
@@ -390,6 +390,8 @@ class RLWalk:
                 time.sleep(max(0, 1 / self.control_freq - took))
 
         except KeyboardInterrupt:
+            # --- IMPLEMENTAÇÃO DO TURN_OFF (CTRL+C) ---
+            print("\nFinalizando componentes...")
             if self.duck_config.antennas:
                 self.antennas.stop()
             if self.duck_config.eyes:
@@ -397,6 +399,16 @@ class RLWalk:
             if self.duck_config.projector:
                 self.projector.stop()
             self.feet_contacts.stop()
+            
+            # Para o som
+            if pygame.mixer.get_init():
+                pygame.mixer.stop()
+
+            # Lógica do turn_off.py integrada diretamente aqui
+            print("Desligando motores (HWI turn_off)...")
+            self.hwi.turn_off()
+            time.sleep(1)
+            # ------------------------------------------
 
         if self.save_obs:
             pickle.dump(self.saved_obs, open("robot_saved_obs.pkl", "wb"))
