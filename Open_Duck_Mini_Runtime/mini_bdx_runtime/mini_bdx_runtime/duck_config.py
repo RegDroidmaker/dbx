@@ -9,7 +9,9 @@ class DuckConfig:
 
     def __init__(
         self,
-        config_json_path: Optional[str] = f"{HOME_DIR}/duck_config.json",
+        # --- ALTERAÇÃO AQUI: Apontando para a pasta correta ---
+        config_json_path: Optional[str] = f"{HOME_DIR}/dbx/duck_config.json",
+        # ------------------------------------------------------
         ignore_default: bool = False,
     ):
         """
