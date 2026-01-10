@@ -23,7 +23,9 @@ class RLWalk:
     def __init__(
         self,
         onnx_model_path: str,
-        duck_config_path: str = f"{HOME_DIR}/duck_config.json",
+        # --- CORREÇÃO 1: Caminho do JSON ajustado para a pasta dbx ---
+        duck_config_path: str = f"{HOME_DIR}/dbx/duck_config.json",
+        # -------------------------------------------------------------
         serial_port: str = "/dev/ttyACM0",
         control_freq: float = 50,
         pid=[30, 0, 0],
@@ -34,17 +36,11 @@ class RLWalk:
         replay_obs=None,
         cutoff_frequency=None,
     ):
-        # --- CORREÇÃO DE CAMINHOS ---
-        # Pega o diretório onde ESTE arquivo (start.py) está localizado
+        # --- CORREÇÃO DE CAMINHOS RELATIVOS ---
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Cria o caminho absoluto para o arquivo pkl
         pkl_path = os.path.join(self.script_dir, "polynomial_coefficients.pkl")
-        
-        # Cria o caminho absoluto para os assets (sons) para evitar erro futuro
-        # Assume que assets está em ../mini_bdx_runtime/assets relativo ao script
         assets_path = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/")
-        # ----------------------------
+        # --------------------------------------
 
         self.duck_config = DuckConfig(config_json_path=duck_config_path)
 
@@ -107,9 +103,6 @@ class RLWalk:
         if self.commands:
             self.xbox_controller = XBoxController(self.command_freq)
 
-        # Reference motion, but we only really need the length of one phase
-        # TODO
-        # AQUI FOI A CORREÇÃO PRINCIPAL:
         self.PRM = PolyReferenceMotion(pkl_path)
         
         self.imitation_i = 0
@@ -126,7 +119,7 @@ class RLWalk:
             self.projector = Projector()
         if self.duck_config.speaker:
             self.sounds = Sounds(
-                volume=1.0, sound_directory=assets_path # AQUI TAMBEM AJUSTAMOS
+                volume=1.0, sound_directory=assets_path
             )
         if self.duck_config.antennas:
             self.antennas = Antennas()
@@ -361,7 +354,9 @@ if __name__ == "__main__":
         "--duck_config_path",
         type=str,
         required=False,
-        default=f"{HOME_DIR}/duck_config.json",
+        # --- CORREÇÃO 2: Padrão do argparse ajustado também ---
+        default=f"{HOME_DIR}/dbx/duck_config.json",
+        # ------------------------------------------------------
     )
     parser.add_argument("-a", "--action_scale", type=float, default=0.25)
     parser.add_argument("-p", type=int, default=30)
