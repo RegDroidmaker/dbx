@@ -27,6 +27,7 @@ class XBoxController:
         self.last_left_trigger = 0.0
         self.last_right_trigger = 0.0
         pygame.init()
+        # Tenta pegar o primeiro joystick
         self.p1 = pygame.joystick.Joystick(0)
         self.p1.init()
         print(f"Loaded joystick with {self.p1.get_numaxes()} axes.")
@@ -53,13 +54,24 @@ class XBoxController:
         left_trigger = self.last_left_trigger
         right_trigger = self.last_right_trigger
 
+        # --- MAPEAMENTO CORRIGIDO PS4 (Baseado no seu teste) ---
+        
+        # Joy Esquerdo (Geralmente 0 e 1 no Python, corresponde ao seu "1 e 2")
         l_x = -1 * self.p1.get_axis(0)
         l_y = -1 * self.p1.get_axis(1)
-        r_x = -1 * self.p1.get_axis(2)
-        r_y = -1 * self.p1.get_axis(3)
 
-        right_trigger = np.around((self.p1.get_axis(4) + 1) / 2, 3)
-        left_trigger = np.around((self.p1.get_axis(5) + 1) / 2, 3)
+        # L2 (Você identificou como Eixo 2)
+        # Nota: Eixos de gatilho variam de -1 a 1. A conta (axis + 1) / 2 converte para 0 a 1.
+        left_trigger = np.around((self.p1.get_axis(2) + 1) / 2, 3)
+
+        # Joy Direito (Você identificou como Eixos 3 e 4)
+        r_x = -1 * self.p1.get_axis(3) # Horizontal
+        r_y = -1 * self.p1.get_axis(4) # Vertical
+
+        # R2 (Você identificou como Eixo 5)
+        right_trigger = np.around((self.p1.get_axis(5) + 1) / 2, 3)
+
+        # -------------------------------------------------------
 
         if left_trigger < 0.1:
             left_trigger = 0
@@ -120,24 +132,25 @@ class XBoxController:
         for event in pygame.event.get():
             if event.type == pygame.JOYBUTTONDOWN:
 
-                if self.p1.get_button(0):  # A button
+                # Botões (Mantidos conforme seu pedido anterior)
+                if self.p1.get_button(0):  # X (PS4)
                     self.A_pressed = True
 
-                if self.p1.get_button(1):  # B button
+                if self.p1.get_button(1):  # Bola (PS4)
                     self.B_pressed = True
 
-                if self.p1.get_button(3):  # X button
+                if self.p1.get_button(3):  # Quadrado (PS4)
                     self.X_pressed = True
 
-                if self.p1.get_button(2):  # Y button
+                if self.p1.get_button(2):  # Triangulo (PS4)
                     self.Y_pressed = True
                     if not self.only_head_control:
                         self.head_control_mode = not self.head_control_mode
 
-                if self.p1.get_button(6):  # LB button
+                if self.p1.get_button(4):  # L1 (PS4)
                     self.LB_pressed = True
 
-                if self.p1.get_button(7):  # RB button
+                if self.p1.get_button(5):  # R1 (PS4)
                     self.RB_pressed = True
 
             if event.type == pygame.JOYBUTTONUP:
@@ -148,12 +161,8 @@ class XBoxController:
                 self.LB_pressed = False
                 self.RB_pressed = False
 
-            # for i in range(10):
-            #     if self.p1.get_button(i):
-            #         print(f"Button {i} pressed")
-
         up_down = self.p1.get_hat(0)[1]
-        pygame.event.pump()  # process event queue
+        pygame.event.pump()
 
         return (
             np.around(last_commands, 3),
@@ -190,7 +199,7 @@ class XBoxController:
                 up_down,
             ) = self.cmd_queue.get(
                 False
-            )  # non blocking
+            )
         except Exception:
             pass
 
