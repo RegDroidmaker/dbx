@@ -4,6 +4,7 @@ import os
 import numpy as np
 import pygame  # Importante para controlar o audio
 import random  # Para escolher o som aleatório
+import json    # <--- ADICIONADO PARA SALVAR O JSON
 
 from mini_bdx_runtime.rustypot_position_hwi import HWI
 from mini_bdx_runtime.onnx_infer import OnnxInfer
@@ -41,7 +42,13 @@ class RLWalk:
         assets_path = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/")
         # --------------------------------------------------------
 
+        self.duck_config_path = duck_config_path # Guardar o caminho para salvar depois
         self.duck_config = DuckConfig(config_json_path=duck_config_path)
+
+        # --- SISTEMA DE CALIBRAÇÃO DE OFFSETS ---
+        self.joint_names = list(self.duck_config.joints_offset.keys())
+        self.selected_joint_index = 0 # Começa no primeiro motor
+        # ----------------------------------------
 
         self.commands = commands
         self.pitch_bias = pitch_bias
@@ -116,21 +123,31 @@ class RLWalk:
             self.eyes = Eyes()
 
         # --- CONTROLE DO PROJETOR ---
-        self.projector_active = False # Variável para rastrear estado
+        self.projector_active = False 
         if self.duck_config.projector:
             self.projector = Projector()
-        # ----------------------------
 
         # --- CONTROLE DE SOM ---
-        self.last_random_sound = None # Para evitar repetir o som
+        self.last_random_sound = None 
         if self.duck_config.speaker:
             self.sounds = Sounds(
                 volume=1.0, sound_directory=assets_path
             )
-        # -----------------------
 
         if self.duck_config.antennas:
             self.antennas = Antennas()
+
+    def save_offsets_to_json(self):
+        """Salva os offsets atuais no arquivo JSON para persistencia"""
+        try:
+            # Atualiza o dicionario principal de config com os novos offsets
+            self.duck_config.json_config["joints_offsets"] = self.duck_config.joints_offset
+            
+            with open(self.duck_config_path, 'w') as f:
+                json.dump(self.duck_config.json_config, f, indent=4)
+            print("Configuracao salva com sucesso!")
+        except Exception as e:
+            print(f"Erro ao salvar JSON: {e}")
 
     def get_obs(self):
 
@@ -222,24 +239,57 @@ class RLWalk:
                     self.last_commands, self.buttons, left_trigger, right_trigger = (
                         self.xbox_controller.get_last_command()
                     )
-                    if self.buttons.dpad_up.triggered:
-                        self.phase_frequency_factor_offset += 0.05
-                        print(
-                            f"Phase frequency factor offset {round(self.phase_frequency_factor_offset, 3)}"
-                        )
+                    
+                    # --- LÓGICA CONDICIONAL: PAUSADO ou NORMAL ---
+                    if not self.paused:
+                        # === MODO NORMAL (ROBÔ ANDANDO) ===
+                        # D-Pad controla velocidade da marcha
+                        if self.buttons.dpad_up.triggered:
+                            self.phase_frequency_factor_offset += 0.05
+                            print(f"Speed Offset: {round(self.phase_frequency_factor_offset, 3)}")
 
-                    if self.buttons.dpad_down.triggered:
-                        self.phase_frequency_factor_offset -= 0.05
-                        print(
-                            f"Phase frequency factor offset {round(self.phase_frequency_factor_offset, 3)}"
-                        )
+                        if self.buttons.dpad_down.triggered:
+                            self.phase_frequency_factor_offset -= 0.05
+                            print(f"Speed Offset: {round(self.phase_frequency_factor_offset, 3)}")
+                    else:
+                        # === MODO PAUSE (CALIBRAÇÃO DE MOTORES) ===
+                        # L1 (LB) -> Motor Anterior
+                        if self.buttons.LB.triggered:
+                            self.selected_joint_index = (self.selected_joint_index - 1) % len(self.joint_names)
+                            motor_name = self.joint_names[self.selected_joint_index]
+                            current_val = self.duck_config.joints_offset[motor_name]
+                            print(f"SELECIONADO: {motor_name} | Offset Atual: {current_val}")
 
-                    if self.buttons.LB.is_pressed:
+                        # R1 (RB) -> Próximo Motor
+                        if self.buttons.RB.triggered:
+                            self.selected_joint_index = (self.selected_joint_index + 1) % len(self.joint_names)
+                            motor_name = self.joint_names[self.selected_joint_index]
+                            current_val = self.duck_config.joints_offset[motor_name]
+                            print(f"SELECIONADO: {motor_name} | Offset Atual: {current_val}")
+
+                        # D-Pad CIMA -> Aumenta Offset (+0.01 rad)
+                        if self.buttons.dpad_up.triggered:
+                            motor_name = self.joint_names[self.selected_joint_index]
+                            self.duck_config.joints_offset[motor_name] += 0.01
+                            self.duck_config.joints_offset[motor_name] = round(self.duck_config.joints_offset[motor_name], 3)
+                            print(f"AJUSTE: {motor_name} -> {self.duck_config.joints_offset[motor_name]}")
+                            self.save_offsets_to_json()
+
+                        # D-Pad BAIXO -> Diminui Offset (-0.01 rad)
+                        if self.buttons.dpad_down.triggered:
+                            motor_name = self.joint_names[self.selected_joint_index]
+                            self.duck_config.joints_offset[motor_name] -= 0.01
+                            self.duck_config.joints_offset[motor_name] = round(self.duck_config.joints_offset[motor_name], 3)
+                            print(f"AJUSTE: {motor_name} -> {self.duck_config.joints_offset[motor_name]}")
+                            self.save_offsets_to_json()
+                    # ----------------------------------------------
+
+                    if self.buttons.LB.is_pressed and not self.paused:
                         self.phase_frequency_factor = 1.3
                     else:
                         self.phase_frequency_factor = 1.0
 
-                    # --- LÓGICA DO BOTÃO QUADRADO (Mapeado como X) - PROJETOR ---
+                    # --- PROJETOR (Botão X - Quadrado) ---
                     if self.buttons.X.triggered:
                         if self.duck_config.projector:
                             self.projector.switch()
@@ -254,59 +304,47 @@ class RLWalk:
                                         pygame.mixer.Sound(sound_p).play()
                                 else:
                                     pygame.mixer.stop()
-                    # ---------------------------------------------------
 
-                    # --- LÓGICA DO BOTÃO BOLA (Mapeado como B) - SOM ALEATÓRIO ---
+                    # --- SOM ALEATÓRIO (Botão B - Bola) ---
                     if self.buttons.B.triggered:
                         if self.duck_config.speaker:
-                            # Se algo estiver tocando, PARA.
                             if pygame.mixer.get_busy():
                                 pygame.mixer.stop()
                             else:
-                                # Se estiver silêncio, toca um NOVO som
                                 try:
-                                    # Define o caminho da pasta random (tenta random, senão usa assets raiz)
                                     base_assets = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/")
                                     random_dir = os.path.join(base_assets, "random")
-                                    
                                     if not os.path.exists(random_dir):
-                                        print(f"Pasta {random_dir} não encontrada, usando raiz.")
                                         random_dir = base_assets
 
-                                    # Lista arquivos de audio
                                     files = [f for f in os.listdir(random_dir) if f.endswith('.wav') or f.endswith('.mp3')]
-                                    
                                     if files:
-                                        # Filtra para não repetir o último, se possível
                                         available_sounds = [f for f in files if f != self.last_random_sound]
-                                        
-                                        # Se só tiver 1 som ou for a primeira vez, reseta a lista
                                         if not available_sounds:
                                             available_sounds = files
 
                                         chosen_sound = random.choice(available_sounds)
                                         self.last_random_sound = chosen_sound
-                                        
                                         full_path = os.path.join(random_dir, chosen_sound)
                                         print(f"Tocando: {chosen_sound}")
                                         pygame.mixer.Sound(full_path).play()
-                                    else:
-                                        print("Nenhum arquivo de som encontrado na pasta.")
-
                                 except Exception as e:
                                     print(f"Erro ao tocar som: {e}")
-                    # -----------------------------------------------------------
 
                     if self.duck_config.antennas:
                         self.antennas.set_position_left(right_trigger)
                         self.antennas.set_position_right(left_trigger)
 
+                    # --- PAUSE (Botão A - X do PS4) ---
                     if self.buttons.A.triggered:
                         self.paused = not self.paused
                         if self.paused:
-                            print("PAUSE")
+                            print("\n=== MODO PAUSE: CALIBRAÇÃO ATIVADA ===")
+                            print(f"Use L1/R1 para selecionar. Use D-Pad para ajustar.")
+                            motor_name = self.joint_names[self.selected_joint_index]
+                            print(f"Motor Atual: {motor_name} ({self.duck_config.joints_offset[motor_name]})")
                         else:
-                            print("UNPAUSE")
+                            print("=== MODO RUN: CALIBRAÇÃO SALVA ===")
 
                 if self.paused:
                     time.sleep(0.1)
@@ -347,17 +385,7 @@ class RLWalk:
                 self.last_last_action = self.last_action.copy()
                 self.last_action = action.copy()
 
-                # action = np.zeros(10)
-
                 self.motor_targets = self.init_pos + action * self.action_scale
-
-                # self.motor_targets = np.clip(
-                #     self.motor_targets,
-                #     self.prev_motor_targets
-                #     - self.max_motor_velocity * (1 / self.control_freq),  # control dt
-                #     self.prev_motor_targets
-                #     + self.max_motor_velocity * (1 / self.control_freq),  # control dt
-                # )
 
                 if self.action_filter is not None:
                     self.action_filter.push(self.motor_targets)
@@ -381,7 +409,6 @@ class RLWalk:
                 i += 1
 
                 took = time.time() - t
-                # print("Full loop took", took, "fps : ", np.around(1 / took, 2))
                 if (1 / self.control_freq - took) < 0:
                     print(
                         "Policy control budget exceeded by",
@@ -390,7 +417,6 @@ class RLWalk:
                 time.sleep(max(0, 1 / self.control_freq - took))
 
         except KeyboardInterrupt:
-            # --- IMPLEMENTAÇÃO DO TURN_OFF (CTRL+C) ---
             print("\nFinalizando componentes...")
             if self.duck_config.antennas:
                 self.antennas.stop()
@@ -400,15 +426,12 @@ class RLWalk:
                 self.projector.stop()
             self.feet_contacts.stop()
             
-            # Para o som
             if pygame.mixer.get_init():
                 pygame.mixer.stop()
 
-            # Lógica do turn_off.py integrada diretamente aqui
             print("Desligando motores (HWI turn_off)...")
             self.hwi.turn_off()
             time.sleep(1)
-            # ------------------------------------------
 
         if self.save_obs:
             pickle.dump(self.saved_obs, open("robot_saved_obs.pkl", "wb"))
