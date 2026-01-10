@@ -1,0 +1,20 @@
+# Arquivos de sistema do Mac (caso tenha copiado algo via rede)
+.DS_Store
+
+# Arquivos compilados do Python e cache
+__pycache__/
+*.pyc
+
+# Ambientes virtuais (não suba a pasta do ambiente, apenas o requirements.txt)
+venv/
+env/
+.env
+dbx/
+
+# Logs e bancos de dados locais
+*.log
+*.sqlite3
+
+# Arquivos de configuração da IDE (VS Code, etc)
+.vscode/
+.idea/
