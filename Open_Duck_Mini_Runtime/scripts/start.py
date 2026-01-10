@@ -354,9 +354,7 @@ if __name__ == "__main__":
         "--duck_config_path",
         type=str,
         required=False,
-        # --- CORREÇÃO 2: Padrão do argparse ajustado também ---
-        default=f"{HOME_DIR}/dbx/duck_config.json",
-        # ------------------------------------------------------
+        default=None, # <--- Deixe None, assim ele usa o padrão definido no duck_config.py
     )
     parser.add_argument("-a", "--action_scale", type=float, default=0.25)
     parser.add_argument("-p", type=int, default=30)
