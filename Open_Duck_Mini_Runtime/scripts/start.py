@@ -2,6 +2,8 @@ import time
 import pickle
 import os
 import numpy as np
+import pygame  # Importante para controlar o audio
+
 from mini_bdx_runtime.rustypot_position_hwi import HWI
 from mini_bdx_runtime.onnx_infer import OnnxInfer
 from mini_bdx_runtime.raw_imu import Imu
@@ -21,9 +23,7 @@ class RLWalk:
     def __init__(
         self,
         onnx_model_path: str,
-        # --- CORREÇÃO 1: Caminho padrão apontando para a pasta dbx ---
         duck_config_path: str = os.path.join(HOME_DIR, "dbx", "duck_config.json"),
-        # -------------------------------------------------------------
         serial_port: str = "/dev/ttyACM0",
         control_freq: float = 50,
         pid=[30, 0, 0],
@@ -34,14 +34,9 @@ class RLWalk:
         replay_obs=None,
         cutoff_frequency=None,
     ):
-        # --- CORREÇÃO 2: Caminhos absolutos para PKL e Assets ---
-        # Descobre onde este script (start.py) está salvo
+        # --- Caminhos absolutos para PKL e Assets ---
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Cria o caminho exato para o arquivo .pkl (na mesma pasta do script)
         pkl_path = os.path.join(self.script_dir, "polynomial_coefficients.pkl")
-        
-        # Cria o caminho exato para a pasta de sons assets
         assets_path = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/")
         # --------------------------------------------------------
 
@@ -106,10 +101,7 @@ class RLWalk:
         if self.commands:
             self.xbox_controller = XBoxController(self.command_freq)
 
-        # Reference motion
-        # --- USO DA CORREÇÃO 2 ---
         self.PRM = PolyReferenceMotion(pkl_path)
-        # -------------------------
         
         self.imitation_i = 0
         self.imitation_phase = np.array([0, 0])
@@ -121,13 +113,16 @@ class RLWalk:
         # Optional expression features
         if self.duck_config.eyes:
             self.eyes = Eyes()
+
+        # --- CONTROLE DO PROJETOR ---
+        self.projector_active = False # Variável para rastrear estado
         if self.duck_config.projector:
             self.projector = Projector()
+        # ----------------------------
+
         if self.duck_config.speaker:
             self.sounds = Sounds(
-                # --- USO DA CORREÇÃO 2 ---
                 volume=1.0, sound_directory=assets_path
-                # -------------------------
             )
         if self.duck_config.antennas:
             self.antennas = Antennas()
@@ -239,9 +234,28 @@ class RLWalk:
                     else:
                         self.phase_frequency_factor = 1.0
 
+                    # --- LÓGICA DO BOTÃO QUADRADO (Mapeado como X) ---
+                    # No nosso script xbox_controller.py, o botão Quadrado (3) aciona o X.triggered
                     if self.buttons.X.triggered:
                         if self.duck_config.projector:
+                            # 1. Troca o estado do LED
                             self.projector.switch()
+                            # 2. Atualiza nossa variavel de controle
+                            self.projector_active = not self.projector_active
+                            
+                            if self.duck_config.speaker:
+                                if self.projector_active:
+                                    # LIGOU: Toca o som
+                                    try:
+                                        self.sounds.play("projector.wav")
+                                    except AttributeError:
+                                        # Fallback manual se necessario
+                                        sound_p = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/projector.wav")
+                                        pygame.mixer.Sound(sound_p).play()
+                                else:
+                                    # DESLIGOU: Para todos os sons imediatamente
+                                    pygame.mixer.stop()
+                    # ---------------------------------------------------
 
                     if self.buttons.B.triggered:
                         if self.duck_config.speaker:
@@ -362,9 +376,7 @@ if __name__ == "__main__":
         "--duck_config_path",
         type=str,
         required=False,
-        # --- CORREÇÃO 1: Também ajustado aqui no Default do argparse ---
         default=os.path.join(HOME_DIR, "dbx", "duck_config.json"),
-        # -------------------------------------------------------------
     )
     parser.add_argument("-a", "--action_scale", type=float, default=0.25)
     parser.add_argument("-p", type=int, default=30)
