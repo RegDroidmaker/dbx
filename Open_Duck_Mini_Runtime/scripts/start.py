@@ -48,6 +48,7 @@ class RLWalk:
         # --- SISTEMA DE CALIBRAÇÃO DE OFFSETS ---
         self.joint_names = list(self.duck_config.joints_offset.keys())
         self.selected_joint_index = 0
+        self.frozen_motor_targets = None # Variável para guardar a pose ao pausar
         # ----------------------------------------
 
         self.commands = commands
@@ -332,27 +333,19 @@ class RLWalk:
                             print("\n=== MODO PAUSE: CALIBRAÇÃO ATIVADA ===")
                             motor_name = self.joint_names[self.selected_joint_index]
                             print(f"Motor Atual: {motor_name} ({self.duck_config.joints_offset[motor_name]})")
+                            
+                            # --- CAPTURA DA POSIÇÃO ATUAL (FREEZE) ---
+                            # Salva a última posição calculada para manter o robô parado nela
+                            self.frozen_motor_targets = self.motor_targets.copy()
+                            # -----------------------------------------
                         else:
                             print("=== MODO RUN: CALIBRAÇÃO SALVA E APLICADA ===")
                             # --- RESET SUAVE AO SAIR DO PAUSE ---
-                            # Reseta os buffers de ação para evitar "pulo"
                             self.last_action = np.zeros(self.num_dofs)
                             self.last_last_action = np.zeros(self.num_dofs)
                             self.last_last_last_action = np.zeros(self.num_dofs)
                             
-                            # Atualiza a init_pos com os novos offsets que você acabou de configurar
-                            # O HWI já leu os novos offsets do self.duck_config automaticamente? 
-                            # Não, precisamos forçar uma "releitura" ou apenas confiar que 
-                            # o init_pos + action vai funcionar porque o init_pos é fixo 
-                            # mas o HWI aplica o offset internamente?
-                            #
-                            # Na verdade, a classe HWI lê os offsets no __init__.
-                            # Se mudarmos os offsets no duck_config aqui fora, precisamos avisar o HWI
-                            # ou recalcular o init_pos.
-                            #
-                            # Vamos simplificar: O init_pos é a posição "zero" dos motores. 
-                            # Se mudamos o offset, o "zero" físico mudou. 
-                            # Vamos atualizar o init_pos localmente para garantir.
+                            # Recalcula o zero com os novos offsets
                             self.init_pos = list(self.hwi.init_pos.values()) 
                             
                             # Reseta os alvos para a posição inicial atualizada
@@ -362,16 +355,14 @@ class RLWalk:
 
                 if self.paused:
                     # --- MODO CALIBRAÇÃO (EM TEMPO REAL) ---
-                    # Precisamos atualizar o offset dentro do HWI também, senão ele usa o velho.
-                    # O HWI guarda os offsets em self.hwi.duck_config.joints_offset.
-                    # Como passamos o objeto duck_config por referência, ao mudar aqui (self.duck_config),
-                    # deve mudar lá também. Vamos garantir enviando o comando.
+                    # Usa a posição congelada (frozen) em vez do init_pos (zero)
+                    # Se frozen for None (começou pausado), usa init_pos.
+                    target_to_send = self.frozen_motor_targets if self.frozen_motor_targets is not None else self.init_pos
                     
                     action_dict = make_action_dict(
-                        self.init_pos, list(self.hwi.joints.keys())
+                        target_to_send, list(self.hwi.joints.keys())
                     )
-                    # O truque: set_position_all no HWI pega (target + offset).
-                    # Se self.init_pos é 0 e offset mudou, o motor deve mover.
+                    # O HWI aplica os novos offsets em cima dessa posição congelada
                     self.hwi.set_position_all(action_dict)
                     
                     time.sleep(0.1)
