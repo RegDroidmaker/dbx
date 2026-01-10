@@ -4,7 +4,7 @@ import os
 import numpy as np
 import pygame  # Importante para controlar o audio
 import random  # Para escolher o som aleatório
-import json    # <--- ADICIONADO PARA SALVAR O JSON
+import json    # Para salvar o JSON
 
 from mini_bdx_runtime.rustypot_position_hwi import HWI
 from mini_bdx_runtime.onnx_infer import OnnxInfer
@@ -42,12 +42,12 @@ class RLWalk:
         assets_path = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/")
         # --------------------------------------------------------
 
-        self.duck_config_path = duck_config_path # Guardar o caminho para salvar depois
+        self.duck_config_path = duck_config_path
         self.duck_config = DuckConfig(config_json_path=duck_config_path)
 
         # --- SISTEMA DE CALIBRAÇÃO DE OFFSETS ---
         self.joint_names = list(self.duck_config.joints_offset.keys())
-        self.selected_joint_index = 0 # Começa no primeiro motor
+        self.selected_joint_index = 0
         # ----------------------------------------
 
         self.commands = commands
@@ -140,9 +140,7 @@ class RLWalk:
     def save_offsets_to_json(self):
         """Salva os offsets atuais no arquivo JSON para persistencia"""
         try:
-            # Atualiza o dicionario principal de config com os novos offsets
             self.duck_config.json_config["joints_offsets"] = self.duck_config.joints_offset
-            
             with open(self.duck_config_path, 'w') as f:
                 json.dump(self.duck_config.json_config, f, indent=4)
             print("Configuracao salva com sucesso!")
@@ -242,8 +240,7 @@ class RLWalk:
                     
                     # --- LÓGICA CONDICIONAL: PAUSADO ou NORMAL ---
                     if not self.paused:
-                        # === MODO NORMAL (ROBÔ ANDANDO) ===
-                        # D-Pad controla velocidade da marcha
+                        # === MODO NORMAL ===
                         if self.buttons.dpad_up.triggered:
                             self.phase_frequency_factor_offset += 0.05
                             print(f"Speed Offset: {round(self.phase_frequency_factor_offset, 3)}")
@@ -252,22 +249,19 @@ class RLWalk:
                             self.phase_frequency_factor_offset -= 0.05
                             print(f"Speed Offset: {round(self.phase_frequency_factor_offset, 3)}")
                     else:
-                        # === MODO PAUSE (CALIBRAÇÃO DE MOTORES) ===
-                        # L1 (LB) -> Motor Anterior
+                        # === MODO PAUSE (CALIBRAÇÃO) ===
                         if self.buttons.LB.triggered:
                             self.selected_joint_index = (self.selected_joint_index - 1) % len(self.joint_names)
                             motor_name = self.joint_names[self.selected_joint_index]
                             current_val = self.duck_config.joints_offset[motor_name]
                             print(f"SELECIONADO: {motor_name} | Offset Atual: {current_val}")
 
-                        # R1 (RB) -> Próximo Motor
                         if self.buttons.RB.triggered:
                             self.selected_joint_index = (self.selected_joint_index + 1) % len(self.joint_names)
                             motor_name = self.joint_names[self.selected_joint_index]
                             current_val = self.duck_config.joints_offset[motor_name]
                             print(f"SELECIONADO: {motor_name} | Offset Atual: {current_val}")
 
-                        # D-Pad CIMA -> Aumenta Offset (+0.01 rad)
                         if self.buttons.dpad_up.triggered:
                             motor_name = self.joint_names[self.selected_joint_index]
                             self.duck_config.joints_offset[motor_name] += 0.01
@@ -275,7 +269,6 @@ class RLWalk:
                             print(f"AJUSTE: {motor_name} -> {self.duck_config.joints_offset[motor_name]}")
                             self.save_offsets_to_json()
 
-                        # D-Pad BAIXO -> Diminui Offset (-0.01 rad)
                         if self.buttons.dpad_down.triggered:
                             motor_name = self.joint_names[self.selected_joint_index]
                             self.duck_config.joints_offset[motor_name] -= 0.01
@@ -289,7 +282,6 @@ class RLWalk:
                     else:
                         self.phase_frequency_factor = 1.0
 
-                    # --- PROJETOR (Botão X - Quadrado) ---
                     if self.buttons.X.triggered:
                         if self.duck_config.projector:
                             self.projector.switch()
@@ -305,7 +297,6 @@ class RLWalk:
                                 else:
                                     pygame.mixer.stop()
 
-                    # --- SOM ALEATÓRIO (Botão B - Bola) ---
                     if self.buttons.B.triggered:
                         if self.duck_config.speaker:
                             if pygame.mixer.get_busy():
@@ -335,18 +326,25 @@ class RLWalk:
                         self.antennas.set_position_left(right_trigger)
                         self.antennas.set_position_right(left_trigger)
 
-                    # --- PAUSE (Botão A - X do PS4) ---
                     if self.buttons.A.triggered:
                         self.paused = not self.paused
                         if self.paused:
                             print("\n=== MODO PAUSE: CALIBRAÇÃO ATIVADA ===")
-                            print(f"Use L1/R1 para selecionar. Use D-Pad para ajustar.")
                             motor_name = self.joint_names[self.selected_joint_index]
                             print(f"Motor Atual: {motor_name} ({self.duck_config.joints_offset[motor_name]})")
                         else:
                             print("=== MODO RUN: CALIBRAÇÃO SALVA ===")
 
                 if self.paused:
+                    # --- AQUI ESTÁ A CORREÇÃO ---
+                    # Mesmo pausado, enviamos o comando para os motores ficarem na posição "zero".
+                    # Como o HWI lê os offsets, eles vão se mexer se o offset mudar.
+                    action_dict = make_action_dict(
+                        self.init_pos, list(self.hwi.joints.keys())
+                    )
+                    self.hwi.set_position_all(action_dict)
+                    # -----------------------------
+                    
                     time.sleep(0.1)
                     continue
 
