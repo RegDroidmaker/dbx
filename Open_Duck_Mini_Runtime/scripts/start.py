@@ -3,6 +3,7 @@ import pickle
 import os
 import numpy as np
 import pygame  # Importante para controlar o audio
+import random  # <--- ADICIONADO PARA ESCOLHER O SOM ALEATÓRIO
 
 from mini_bdx_runtime.rustypot_position_hwi import HWI
 from mini_bdx_runtime.onnx_infer import OnnxInfer
@@ -120,10 +121,14 @@ class RLWalk:
             self.projector = Projector()
         # ----------------------------
 
+        # --- CONTROLE DE SOM ---
+        self.last_random_sound = None # Para evitar repetir o som
         if self.duck_config.speaker:
             self.sounds = Sounds(
                 volume=1.0, sound_directory=assets_path
             )
+        # -----------------------
+
         if self.duck_config.antennas:
             self.antennas = Antennas()
 
@@ -234,32 +239,63 @@ class RLWalk:
                     else:
                         self.phase_frequency_factor = 1.0
 
-                    # --- LÓGICA DO BOTÃO QUADRADO (Mapeado como X) ---
-                    # No nosso script xbox_controller.py, o botão Quadrado (3) aciona o X.triggered
+                    # --- LÓGICA DO BOTÃO QUADRADO (Mapeado como X) - PROJETOR ---
                     if self.buttons.X.triggered:
                         if self.duck_config.projector:
-                            # 1. Troca o estado do LED
                             self.projector.switch()
-                            # 2. Atualiza nossa variavel de controle
                             self.projector_active = not self.projector_active
                             
                             if self.duck_config.speaker:
                                 if self.projector_active:
-                                    # LIGOU: Toca o som
                                     try:
                                         self.sounds.play("projector.wav")
                                     except AttributeError:
-                                        # Fallback manual se necessario
                                         sound_p = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/projector.wav")
                                         pygame.mixer.Sound(sound_p).play()
                                 else:
-                                    # DESLIGOU: Para todos os sons imediatamente
                                     pygame.mixer.stop()
                     # ---------------------------------------------------
 
+                    # --- LÓGICA DO BOTÃO BOLA (Mapeado como B) - SOM ALEATÓRIO ---
                     if self.buttons.B.triggered:
                         if self.duck_config.speaker:
-                            self.sounds.play_random_sound()
+                            # Se algo estiver tocando, PARA.
+                            if pygame.mixer.get_busy():
+                                pygame.mixer.stop()
+                            else:
+                                # Se estiver silêncio, toca um NOVO som
+                                try:
+                                    # Define o caminho da pasta random (tenta random, senão usa assets raiz)
+                                    base_assets = os.path.join(self.script_dir, "../mini_bdx_runtime/assets/")
+                                    random_dir = os.path.join(base_assets, "random")
+                                    
+                                    if not os.path.exists(random_dir):
+                                        print(f"Pasta {random_dir} não encontrada, usando raiz.")
+                                        random_dir = base_assets
+
+                                    # Lista arquivos de audio
+                                    files = [f for f in os.listdir(random_dir) if f.endswith('.wav') or f.endswith('.mp3')]
+                                    
+                                    if files:
+                                        # Filtra para não repetir o último, se possível
+                                        available_sounds = [f for f in files if f != self.last_random_sound]
+                                        
+                                        # Se só tiver 1 som ou for a primeira vez, reseta a lista
+                                        if not available_sounds:
+                                            available_sounds = files
+
+                                        chosen_sound = random.choice(available_sounds)
+                                        self.last_random_sound = chosen_sound
+                                        
+                                        full_path = os.path.join(random_dir, chosen_sound)
+                                        print(f"Tocando: {chosen_sound}")
+                                        pygame.mixer.Sound(full_path).play()
+                                    else:
+                                        print("Nenhum arquivo de som encontrado na pasta.")
+
+                                except Exception as e:
+                                    print(f"Erro ao tocar som: {e}")
+                    # -----------------------------------------------------------
 
                     if self.duck_config.antennas:
                         self.antennas.set_position_left(right_trigger)
