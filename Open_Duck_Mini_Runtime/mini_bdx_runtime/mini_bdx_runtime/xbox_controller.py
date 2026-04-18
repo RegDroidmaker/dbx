@@ -154,10 +154,10 @@ class XBoxController:
                 if self.p1.get_button(1):  # Bola (PS4)
                     self.B_pressed = True
 
-              if self.p1.get_button(3):  # Quadrado (PS4)
+                if self.p1.get_button(3):  # Quadrado (PS4)
                     self.X_pressed = True
 
-              if self.p1.get_button(2):  # Triangulo (PS4)
+                if self.p1.get_button(2):  # Triangulo (PS4)
                     self.Y_pressed = True
                     if not self.only_head_control:
                         self.head_control_mode = not self.head_control_mode
@@ -166,9 +166,6 @@ class XBoxController:
                             print("\n[🎮] MODO ATIVO: Animação da Cabeça (Head Mode)")
                         else:
                             print("\n[🚶] MODO ATIVO: Caminhada (Walk Mode)")
-
-                if self.p1.get_button(4):  # L1 (PS4)
-                    self.LB_pressed = True
 
                 if self.p1.get_button(4):  # L1 (PS4)
                     self.LB_pressed = True

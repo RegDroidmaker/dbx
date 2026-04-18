@@ -22,6 +22,15 @@ from mini_bdx_runtime.duck_config import DuckConfig
 HOME_DIR = os.path.expanduser("~")
 
 class RLWalk:
+
+    def _update_terminal_header(self):
+        # \033[s  -> Salva a posição atual do cursor
+        # \033[1;1H -> Move o cursor para a Linha 1, Coluna 1
+        # \033[1;41m -> Fundo Vermelho / \033[0m -> Reseta cores
+        # \033[u  -> Restaura o cursor para a posição original
+        header = "\033[s\033[1;1H\033[1;41m  ⚠️  SISTEMA ATIVO: PRESSIONE [CTRL + C] PARA DESLIGAR O ROBÔ  \033[0m\033[u"
+        print(header, end="", flush=True)
+
     def __init__(
         self,
         onnx_model_path: str,
@@ -227,10 +236,19 @@ class RLWalk:
     def run(self):
         i = 0
         try:
-            print("Starting")
+            # --- LIMPA A TELA AO INICIAR ---
+            print("\033[2J\033[H", end="") 
+            print("\n" * 2) # Abre espaço para o cabeçalho no topo
+            print("Starting...")
+            
             start_t = time.time()
             while True:
+                # --- ATUALIZA O CABEÇALHO A CADA 50 CICLOS (1 segundo) ---
+                if i % 50 == 0:
+                    self._update_terminal_header()
+                
                 left_trigger = 0
+                # ... restante do seu código ...
                 right_trigger = 0
                 t = time.time()
 
