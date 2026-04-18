@@ -18,3 +18,10 @@ dbx/
 # Arquivos de configuração da IDE (VS Code, etc)
 .vscode/
 .idea/
+bin/
+lib/
+lib64/
+pyvenv.cfg
+teste.py
+lib64
+*.pkl

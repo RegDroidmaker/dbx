@@ -5,25 +5,25 @@
     "expression_features": {
         "eyes": true,
         "projector": true,
-        "antennas": true,
+        "antennas": false,
         "speaker": true,
         "microphone": false,
         "camera": false
     },
     "joints_offsets": {
-        "left_hip_yaw": 0.0,
-        "left_hip_roll": 0.0,
-        "left_hip_pitch": 0.0,
-        "left_knee": 0.0,
-        "left_ankle": 0.0,
-        "neck_pitch": 0.0,
-        "head_pitch": 0.0,
-        "head_yaw": 0.0,
-        "head_roll": 0.00,
-        "right_hip_yaw": 0.0,
-        "right_hip_roll": 0.0,
-        "right_hip_pitch": 0.0,
-        "right_knee": 0.0,
-        "right_ankle": 0.0
+        "left_hip_yaw": 0.01,
+        "left_hip_roll": -0.14,
+        "left_hip_pitch": 0.15,
+        "left_knee": -0.01,
+        "left_ankle": -0.15,
+        "neck_pitch": -0.26,
+        "head_pitch": 0.35,
+        "head_yaw": 0.29,
+        "head_roll": 0.18,
+        "right_hip_yaw": 0.03,
+        "right_hip_roll": 0.26,
+        "right_hip_pitch": -0.09,
+        "right_knee": 0.07,
+        "right_ankle": -0.22
     }
 }
